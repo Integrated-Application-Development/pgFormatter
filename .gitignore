@@ -1,2 +1,13 @@
 # Swap files
 *.swp
+
+# artifect
+Makefile
+blib/
+pm_to_blib
+
+# ide
+*.vscode
+
+# beyond compare
+*.orig
