@@ -136,6 +136,16 @@ Takes options as hash. Following options are recognized:
 
 =back
 
+=item * code_type - output code type
+
+=over
+
+=item 0 - SQL
+
+=item 1 - Delphi string
+
+=back
+
 =item * separator - string used as dynamic code separator, default is single quote
 
 =item * uc_keywords - what to do with keywords - meaning of value like with uc_functions
@@ -174,7 +184,7 @@ sub new
     my $self = bless {}, $class;
     $self->set_defaults();
 
-    for my $key ( qw( query spaces space break wrap keywords functions rules uc_keywords uc_functions uc_types no_comments no_grouping placeholder multiline separator comma comma_break format colorize format_type wrap_limit wrap_after wrap_comment numbering redshift no_extra_line keep_newline) ) {
+    for my $key ( qw( query spaces space break wrap keywords functions rules uc_keywords uc_functions uc_types no_comments no_grouping placeholder multiline separator comma comma_break format colorize format_type wrap_limit wrap_after wrap_comment numbering redshift no_extra_line keep_newline code_type) ) {
         $self->{ $key } = $options{ $key } if defined $options{ $key };
     }
 
@@ -212,6 +222,7 @@ sub new
     $self->{ 'wrap_after' }    //= 0;
     $self->{ 'wrap_comment' }  //= 0;
     $self->{ 'no_extra_line' } //= 0;
+    $self->{ 'non_sql_delimiter' } = '';
 
     return $self;
 }
@@ -236,6 +247,8 @@ sub query
     $self->{ 'query' } = $new_value if defined $new_value;
 
     $self->{idx_code} = 0;
+
+    $self->unquote;
 
     # Replace any COMMENT constant between single quote 
     while ($self->{ 'query' } =~ s/IS\s+([EU]*'(?:[^;]*)')\s*;/IS TEXTVALUE$self->{idx_code};/is)
@@ -2778,6 +2791,8 @@ sub beautify
     {
         $self->_new_line();
     }
+    
+    $self->quote;
 
     # Attempt to eliminate redundant parenthesis in DML queries
     while ($self->{ 'content' } =~ s/(\s+(?:WHERE|SELECT|FROM)\s+[^;]+)[\(]{2}([^\(\)]+)[\)]{2}([^;]+)/$1($2)$3/igs) {};
@@ -3570,6 +3585,65 @@ sub _generate_anonymized_string
     return $cache->{ $original };
 }
 
+=head2 unquote
+
+Remove single quotes and string concatenation from Delphi String.
+
+=cut
+
+sub unquote {
+  my $self  = shift;
+  my $query = $self->{ 'query' };
+  my $non_sql_delimiter = '';
+
+  return if ( !$query );
+
+  if ($query =~ /^\s*\'.*/) {
+    $query =~ s/^\s*\'//s;             # remove openning '
+    $query =~ s/\'\s*\+\s*\'//gs;      # remove concatenator ' + '
+    if ($query =~ /\'\s*\+\s*(.*?)\s*(\+\s*\'|$)/) {
+      # Delimit non sql code so quote() can restore it.
+      # Use " as the delimiter so that the main beautify() logic treats the delimeted item as an 
+      # sql identifier so leaves its capitalisation unchanged.
+      $non_sql_delimiter = '"';
+      $query =~ s/\'\s*\+\s*(.*?)\s*(\+\s*\'|$)/ $non_sql_delimiter$1$non_sql_delimiter /gs;
+    }
+    $query =~ s/\'\'/\'/gs;            # un-escape '
+    $query =~ s/\s+\'\s*$//s;          # remove closing '
+  }
+
+  $self->{ 'non_sql_delimiter' } = $non_sql_delimiter;
+  $self->{ 'query' } = $query;
+}
+
+=head2 quote
+
+Add single quotes and string concatenation for Delphi String.
+
+=cut
+
+sub quote {
+  my $self  = shift;
+  my $content = $self->content;
+  my $non_sql_delimiter = $self->{ 'non_sql_delimiter' };
+
+  return if ( !$content );
+
+  if ($self->{ 'code_type' } == 1) {
+    $content =~ s/;\s*$/\n/s;                  # remove trailing ;  
+    $content =~ s/\'/\'\'/gs;                  # escape '
+    $content = '\' ' . $content;               # add openning '
+    if ($non_sql_delimiter ne '') {
+      $content =~ s/$non_sql_delimiter(.*?)$non_sql_delimiter/\' \+ $1 \+ \'/gs; 
+    }
+    $content =~ s/\n/ \' \+\n\' /gs;           # add concatenator ' + '
+    $content =~ s/ \' \+\n\' $/ \'/s;          # remove last concatenator ' + '
+    $content =~ s/ \+ \'\s*\' \+\n/ \+\n/s;    # remove trailing blanks + ' ' +
+  }
+
+  $self->content( $content ); 
+}  
+
 =head2 anonymize
 
 Anonymize litteral in SQL queries by replacing parameters with fake values
@@ -3661,6 +3735,8 @@ Currently defined defaults:
 
 =item keep_newline => 0
 
+=item code_type => 0
+
 =back
 
 =cut
@@ -3699,6 +3775,7 @@ sub set_defaults
     $self->{ 'wrap_comment' }  = 0;
     $self->{ 'no_extra_line' } = 0;
     $self->{ 'keep_newline' }  = 0;
+    $self->{ 'code_type' }     = 0;
 
     return;
 }
