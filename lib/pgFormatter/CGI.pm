@@ -157,6 +157,7 @@ sub set_config {
     $self->{ 'no_space_function' } //= 0;
     # Backward compatibility
     $self->{ 'extra_keyword' } = 'redshift' if (!$self->{ 'extra_keyword' } && $self->{ 'redshift' });
+    $self->{ 'code_type' }    = 0;
 
     if ($self->{ 'tabs' })
     {
@@ -219,7 +220,7 @@ sub get_params {
     # shortcut
     my $cgi = $self->{ 'cgi' };
 
-    for my $param_name ( qw( colorize spaces uc_keyword uc_function uc_type content nocomment nogrouping show_example anonymize separator comma comma_break format_type wrap_after original_content numbering redshift keep_newline no_space_function) ) {
+    for my $param_name ( qw( colorize spaces uc_keyword uc_function uc_type content nocomment nogrouping show_example anonymize separator comma comma_break format_type wrap_after original_content numbering redshift keep_newline no_space_function code_type) ) {
         $self->{ $param_name } = $cgi->param( $param_name ) if defined $cgi->param( $param_name );
     }
 
@@ -278,6 +279,7 @@ sub sanitize_params {
     $self->{ 'redshift' }     = 0 if ($self->{ 'redshift' } !~ /^(0|1)$/);
     $self->{ 'keep_newline' }   = 0 if ($self->{ 'keep_newline' } !~ /^(0|1)$/);
     $self->{ 'no_space_function' } = 0 if ($self->{ 'no_space_function' } !~ /^(0|1)$/);
+    $self->{ 'code_type' }    = 0 if ($self->{ 'code_type' } !~ /^(0|1)$/);
 
     if ( $self->{ 'show_example' } ) {
         $self->{ 'content' } = q{
@@ -320,6 +322,7 @@ sub beautify_query {
     $args{ 'colorize' }     = $self->{ 'colorize' };
     $args{ 'comma_break' }  = $self->{ 'comma_break' };
     $args{ 'format_type' }  = 1 if ($self->{ 'format_type' });
+    $args{ 'code_type' }    = $self->{ 'code_type' };
     $args{ 'wrap_after' }   = $self->{ 'wrap_after' };
     $args{ 'no_grouping' }  = 1 if $self->{ 'nogrouping' };
     $args{ 'numbering' }    = 1 if $self->{ 'numbering' };
@@ -418,85 +421,27 @@ sub print_body {
 <form method="post" action="" enctype="multipart/form-data">
  <table width="100%"><tr><td align="center" valign="top">
  <div id="options">
-    <fieldset><legend id="general"><strong> General </strong></legend>
+    <fieldset><legend id="general"><strong> Options </strong></legend>
       <div id="general_content" class="content">
-      <input type="checkbox" id="id_highlight" name="colorize" value="1" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_colorize/>
-      <label for="id_highlight">Enable syntax highlighting</label>
-      <br />
       <input type="checkbox" id="id_remove_comments" name="nocomment" value="1" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_nocomment/>
       <label for="id_remove_comments">Remove comments</label>
       <br />
       <input type="checkbox" id="id_anonymize" name="anonymize" value="1" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_anonymize/>
       <label for="id_anonymize">Anonymize values in queries</label>
       <br />
-      <input type="checkbox" id="id_comma" name="comma" value="start" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_comma/>
-      <label for="id_comma">Comma at beginning</label>
-      <br />
-      <input type="checkbox" id="id_comma_break" name="comma_break" value="1" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_comma_break/>
-      <label for="id_comma_break">New-line after comma (insert)</label>
-      <br />
-      <input type="checkbox" id="id_keep_newline" name="keep_newline" value="1" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_keepnewline/>
-      <label for="id_keep_newline">Keep empty lines</label>
-      <br />
-      <input type="checkbox" id="id_format_type" name="format_type" value="1" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_format_type/>
-      <label for="id_format_type">Alternate formatting</label>
-      <br />
-      <input type="checkbox" id="id_no_grouping" name="nogrouping" value="1" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_nogrouping/>
-      <label for="id_no_grouping">No transaction grouping</label>
-      <br />
-      <input type="checkbox" id="id_numbering" name="numbering" value="1" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_numbering/>
-      <label for="id_numbering">Statement numbering</label>
-      <br />
-      <input type="checkbox" id="id_no_space_function" name="no_space_function" value="1" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_spacefunctioncall/>
-      <label for="id_no_space_function">No space function call</label>
-      <br />
-      <input type="checkbox" id="id_redshift" name="redshift" value="1" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" $chk_redshift/>
-      <label for="id_redshift">Redshift keywords</label>
       </div>
     </fieldset>
       <br />
-    <fieldset><legend id="kwcase">
-    <strong> Keywords & functions</strong></legend>
-      <div>
-      Keywords: <select name="uc_keyword" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();">
-            <option value="0"$kw_toggle{0}>Unchanged</option>
-            <option value="1"$kw_toggle{1} >Lower case</option>
-            <option value="2"$kw_toggle{2} >Upper case</option>
-            <option value="3"$kw_toggle{3} >Capitalize</option>
-      </select>
-    <br />
-      Functions: <select name="uc_function" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();">
-            <option value="0"$fct_toggle{0}>Unchanged</option>
-            <option value="1"$fct_toggle{1} >Lower case</option>
-            <option value="2"$fct_toggle{2} >Upper case</option>
-            <option value="3"$fct_toggle{3} >Capitalize</option>
-      </select>
-    <br />
-      Datatypes: <select name="uc_type" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();">
-            <option value="0"$typ_toggle{0}>Unchanged</option>
-            <option value="1"$typ_toggle{1} >Lower case</option>
-            <option value="2"$typ_toggle{2} >Upper case</option>
-            <option value="3"$typ_toggle{3} >Capitalize</option>
-      </select>
-    </div>
-    </fieldset>
-      <br />
-    <fieldset><legend id="indent"><strong> Indentation </strong>
-    </legend>
-      <div id="indent_content" class="content">
-        Indentation: <input name="spaces" value="$self->{ 'spaces' }" maxlength="2" type="text" id="spaces" size="2" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" /> spaces
-      <br />
-      Wrap after:&nbsp;&nbsp;<input name="wrap_after" value="$self->{ 'wrap_after' }" maxlength="2" type="text" id="wrap_after" size="2" onchange="document.forms[0].original_content.value != ''; document.forms[0].submit();" /> cols
-      </div>
-    </fieldset>
     <p align="center">
-    <input type="button" value="Clear" onclick="document.forms[0].original_content.value = ''; document.forms[0].submit();" title="Clear content in code area"/>
-    &nbsp;&nbsp;
-    <input type="button" value="Reset" onclick="document.location.href='$service_url'; return true;" title="Reset all options to default"/>
-    &nbsp;&nbsp;
-    <input type="button" value="Load example" onclick="document.forms[0].show_example.value=1; document.forms[0].submit();" title="Load an example to see what pgFormatter is a able to do"/>
-    <input type="hidden" name="show_example" value="0" />
-    </p>
+	  <input type="hidden" name="code_type" value="0" />
+      <input type="hidden" name="show_example" value="0" />
+      <input type="button" value="To SQL" onclick="document.forms[0].code_type.value=0; document.forms[0].submit();"/>&nbsp;&nbsp;
+      <input type="button" value="To Delphi" onclick="document.forms[0].code_type.value=1; document.forms[0].submit();"/>&nbsp;&nbsp;
+      <br />
+      <br />
+      <input type="button" value="Copy code" onclick="copy_code()"/>&nbsp;&nbsp;
+      <input type="button" value="Clear code" onclick="document.forms[0].original_content.value = ''; document.forms[0].submit();"/>
+	</p>
     <input type="hidden" name="load_from_file" value="0" />
     <p align="center">
     <span style="position: relative">
@@ -507,8 +452,6 @@ sub print_body {
     <input type="button" value="Upload file" onclick="if (document.forms[0].filetoload.value != '') { document.forms[0].load_from_file.value=1; document.forms[0].submit(); } return false;"/>
     </span>
     </p>
-    <p align="center">
-    <input id="format_code" type="button" style="background-color: #ff7400;" value="&nbsp;Format my code&nbsp;" onclick="document.forms[0].submit();"/>
   </div>
   </td><td valign="top" align="left">
   <table><tr><td>
@@ -524,12 +467,6 @@ qq{<textarea name="content" id="sqlcontent" onfocus="if (done == 0) this.value='
     else
     {
         print qq{<div class="sql" id="sql"><pre>$self->{ 'content' }</pre></div>};
-	print qq{
-	</td></tr>
-	<tr><td align="center"><div class="sql">
-    <input id="copycode" type="button" style="background-color: #ff7400" value="&nbsp;Copy to clipboard&nbsp;" onclick="if (!navigator.clipboard) {return false;} var copied=document.getElementById('sql').innerText;navigator.clipboard.writeText(copied); return false;"/>
-        <p></p>
-};
     }
     print
 qq{<textarea name="original_content" id="originalcontent" style="display: none;">$self->{ 'original_content' }</textarea>};
@@ -652,6 +589,14 @@ if (objtextarea.value.length > maxlength) {
     alert('Hum, with no limit I means up to '+maxlength+' characters!\\nThat should be enough, no ? Content has been truncated.');
 }
 }
+function copy_code() {
+    var temp = document.createElement('textarea');
+    temp.value = document.getElementById("sql").textContent;
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand('copy');
+    document.body.removeChild(temp);
+}
 //-->
 </script>
 </head>
@@ -662,8 +607,6 @@ if (objtextarea.value.length > maxlength) {
 <div class="logopart">
 <a href="$self->{ 'service_url' }"><img class="logo" src="logo_pgformatter.png"/></a><p>pgFormatter</p>
 </div>
-</td><td width="1000">
-Free Online version of $self->{ 'program_name' } a PostgreSQL SQL syntax beautifier (no line limit here up to $self->{ 'maxlength' } characters).  This SQL formatter/beautifier supports keywords from SQL-92, SQL-99, SQL-2003, SQL-2008, SQL-2011 and PostgreSQL specifics keywords.  May work with any other databases too.
 </td>
 </tr>
 </table>
@@ -687,7 +630,7 @@ Please report any bugs or feature requests to: https://github.com/darold/pgForma
 
 =head1 COPYRIGHT
 
-Copyright 2012-2023 Gilles Darold. All rights reserved.
+Copyright 2012-2021 Gilles Darold. All rights reserved.
 
 =head1 LICENSE
 
@@ -736,8 +679,8 @@ box-shadow:3px 3px 6px 2px #A9A9A9;
 -webkit-box-shadow:3px 3px 6px #A9A9A9;
 }
 textarea#sqlcontent {
-width: 1000px;
-height: 400px;
+width: 1600px;
+height: 800px;
 border: 3px solid #cccccc;
 padding: 5px;
 font-family: Tahoma, sans-serif;
@@ -753,8 +696,8 @@ box-shadow:3px 3px 6px 2px #A9A9A9;
 -webkit-box-shadow:3px 3px 6px #A9A9A9;
 }
 div#sql {
-width: 1000px;
-height: 400px;
+width: 1600px;
+height: 800px;
 border: 3px solid #cccccc;
 padding: 5px;
 overflow: auto;
